@@ -18,10 +18,11 @@ import (
 )
 
 var (
-	packOutput  string
-	packVars    []string
-	packSuggest bool
-	packDryRun  bool
+	packOutput   string
+	packVars     []string
+	packExcludes []string
+	packSuggest  bool
+	packDryRun   bool
 )
 
 var packCmd = &cobra.Command{
@@ -105,6 +106,14 @@ var packCmd = &cobra.Command{
 			}
 		}
 
+		// Determine pack excludes: CLI flags > config > defaults.
+		packExcludeList := config.DefaultReplaceExcludes
+		if len(packExcludes) > 0 {
+			packExcludeList = packExcludes
+		} else if cfg, err := config.Load(); err == nil {
+			packExcludeList = cfg.Pack.GetExcludes()
+		}
+
 		fileCount := 0
 		totalReplacements := 0
 
@@ -117,7 +126,7 @@ var packCmd = &cobra.Command{
 				return nil
 			}
 
-			if config.IsExcluded(path, config.BuiltinExcludes) || config.IsExcluded(path, config.DefaultReplaceExcludes) {
+			if config.IsExcluded(path, config.BuiltinExcludes) || config.IsExcluded(path, packExcludeList) {
 				if d.IsDir() {
 					return filepath.SkipDir
 				}
@@ -223,6 +232,7 @@ func parseVarFlags(flags []string) map[string]string {
 func init() {
 	packCmd.Flags().StringVarP(&packOutput, "output", "o", "", "output directory for the template")
 	packCmd.Flags().StringArrayVar(&packVars, "var", nil, "variable to replace (key=value, repeatable)")
+	packCmd.Flags().StringArrayVar(&packExcludes, "exclude", nil, "directories/files to exclude (repeatable)")
 	packCmd.Flags().BoolVar(&packSuggest, "suggest", false, "auto-detect variables from project files")
 	packCmd.Flags().BoolVar(&packDryRun, "dry-run", false, "show what would be packed without making changes")
 	rootCmd.AddCommand(packCmd)

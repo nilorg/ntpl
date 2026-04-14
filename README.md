@@ -84,6 +84,7 @@ ntpl status
 | `ntpl status` | 查看同步状态及远程更新 |
 | `ntpl pack -o <dir> --suggest` | 打包项目为模板 |
 | `ntpl pack -o <dir> --var k=v` | 指定变量打包（多个变量重复 `--var`） |
+| `ntpl pack --exclude <dir>` | 打包时排除指定目录（可重复） |
 | `ntpl replace` | 按配置替换源值 |
 | `ntpl replace --suggest` | 交互式检测并替换 |
 
@@ -111,6 +112,11 @@ sync:
   hooks:              # sync 前后执行脚本
     before: ./scripts/backup.sh
     after: ./scripts/gen.sh
+
+pack:
+  exclude:            # pack 时跳过的目录（默认 vendor, node_modules）
+    - vendor
+    - node_modules
 
 replace:
   exclude:            # replace 时跳过的目录（默认 vendor, node_modules）
@@ -274,13 +280,19 @@ replace:
 
 工作流：`ntpl sync` → `ntpl replace` → 源仓库的值被替换为你的值。
 
-## Replace 排除
+## Pack / Replace 排除
 
-`replace` 命令默认跳过 `vendor`、`node_modules` 等第三方依赖目录，避免修改非项目代码。
+`pack` 和 `replace` 命令默认跳过 `vendor`、`node_modules` 等第三方依赖目录。
 
-可通过 `replace.exclude` 配置自定义需要跳过的目录：
+可分别通过 `pack.exclude` 和 `replace.exclude` 配置：
 
 ```yaml
+pack:
+  exclude:
+    - vendor
+    - node_modules
+    - dist                   # 构建产物
+
 replace:
   exclude:
     - vendor
@@ -288,7 +300,7 @@ replace:
     - third_party
 ```
 
-未配置时使用默认值（`vendor`、`node_modules`）。`sync` 和 `pack` 命令不受此配置影响。
+未配置时使用默认值（`vendor`、`node_modules`）。pack 还支持 CLI 参数 `--exclude` 覆盖配置。
 
 ## 声明式检测规则
 

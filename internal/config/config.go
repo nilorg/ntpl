@@ -42,6 +42,20 @@ type Config struct {
 	Templates []Template    `yaml:"templates"`
 	Sync      Sync          `yaml:"sync"`
 	Replace   ReplaceConfig `yaml:"replace"`
+	Pack      PackConfig    `yaml:"pack"`
+}
+
+// PackConfig holds settings for the pack command.
+type PackConfig struct {
+	Exclude []string `yaml:"exclude"`
+}
+
+// GetExcludes returns configured pack excludes, or defaults if not set.
+func (p PackConfig) GetExcludes() []string {
+	if len(p.Exclude) > 0 {
+		return p.Exclude
+	}
+	return DefaultReplaceExcludes
 }
 
 // ReplaceConfig holds settings for the replace command.

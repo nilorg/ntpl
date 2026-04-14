@@ -66,6 +66,21 @@ sync:
     # after: ./scripts/post-sync.sh
 
 # -----------------------------------------------------------------------------
+# pack 配置
+# 打包项目为模板时的排除规则
+# 命令: ntpl pack -o <dir> --suggest / ntpl pack -o <dir> --var k=v
+# 也可用 CLI 参数覆盖: ntpl pack --exclude vendor --exclude node_modules
+# -----------------------------------------------------------------------------
+pack:
+  # 排除目录列表（打包时跳过，不复制到模板输出目录）
+  # 未配置时默认排除: vendor, node_modules
+  exclude:
+    - vendor                 # Go 依赖
+    - node_modules           # Node.js 依赖
+    - dist                   # 构建产物
+    # - .next                # Next.js 构建缓存
+
+# -----------------------------------------------------------------------------
 # replace 配置
 # 将源仓库中的特定值替换为自己的值（适用于无 {ntpl:...} 占位符的模板仓库）
 # 命令: ntpl replace / ntpl replace --suggest / ntpl replace --dry-run
@@ -74,7 +89,6 @@ sync:
 replace:
   # 排除目录列表（replace 时跳过，不修改第三方代码）
   # 未配置时默认排除: vendor, node_modules
-  # sync 和 pack 命令不受此配置影响
   exclude:
     - vendor                 # Go 依赖
     - node_modules           # Node.js 依赖

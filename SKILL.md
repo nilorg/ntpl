@@ -107,6 +107,7 @@ ntpl pack -o <output-dir> --suggest --dry-run
 |------|------|
 | `-o`, `--output` | 输出目录（必填） |
 | `--var` | 手动指定变量（key=value，可重复） |
+| `--exclude` | 排除目录（可重复，覆盖配置） |
 | `--suggest` | 使用声明式规则自动检测变量 |
 | `--dry-run` | 预览模式 |
 
@@ -160,6 +161,11 @@ sync:
   hooks:                         # sync 前后执行脚本
     before: ./scripts/backup.sh
     after: ./scripts/gen.sh
+
+pack:
+  exclude:                       # pack 跳过的目录（默认 vendor, node_modules）
+    - vendor
+    - node_modules
 
 replace:
   exclude:                       # replace 跳过的目录（默认 vendor, node_modules）
@@ -294,3 +300,4 @@ ntpl 在项目目录中管理以下文件和目录：
 - 检测规则加载顺序：内置 → `~/.config/ntpl/rules/` → `.ntpl/rules/`，同名后者覆盖
 - replace 按值长度降序替换，避免短值误替换长值的子串
 - replace 默认跳过 `vendor`、`node_modules` 等依赖目录，可通过 `replace.exclude` 自定义
+- pack 默认跳过 `vendor`、`node_modules`，可通过 `pack.exclude` 或 `--exclude` 参数自定义
