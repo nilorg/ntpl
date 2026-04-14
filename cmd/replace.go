@@ -1,0 +1,236 @@
+package cmd
+
+import (
+	"bufio"
+	"bytes"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/nilorg/ntpl/internal/config"
+	"github.com/nilorg/ntpl/internal/detect"
+
+	"github.com/spf13/cobra"
+)
+
+var (
+	replaceDryRun  bool
+	replaceSuggest bool
+)
+
+var replaceCmd = &cobra.Command{
+	Use:   "replace",
+	Short: "Replace source values with your own in project files",
+	Run: func(cmd *cobra.Command, args []string) {
+		rules := detect.LoadRules()
+		detected := detect.Detect(rules, ".")
+
+		var replacements []replaceItem
+
+		if replaceSuggest {
+			if len(detected) == 0 {
+				fmt.Println("no variables detected")
+				return
+			}
+
+			fmt.Println("detected variables:")
+			reader := bufio.NewReader(os.Stdin)
+			for _, v := range detected {
+				fmt.Printf("  %s = %s (from %s)\n", v.Key, v.Value, v.Source)
+				fmt.Printf("    replace with (enter to skip): ")
+				answer, _ := reader.ReadString('\n')
+				answer = strings.TrimSpace(answer)
+				if answer != "" && answer != v.Value {
+					replacements = append(replacements, replaceItem{
+						key:  v.Key,
+						from: v.Value,
+						to:   answer,
+					})
+				}
+			}
+
+			if len(replacements) > 0 {
+				fmt.Print("\nsave to .ntpl.yaml? [y/n] ")
+				answer, _ := reader.ReadString('\n')
+				answer = strings.TrimSpace(strings.ToLower(answer))
+				if answer == "y" || answer == "yes" {
+					saveReplaceConfig(replacements)
+				}
+			}
+		} else {
+			cfg, err := config.Load()
+			if err != nil {
+				fmt.Println("error:", err)
+				return
+			}
+
+			if len(cfg.Replace) == 0 {
+				fmt.Println("no replace rules in .ntpl.yaml, use --suggest for interactive mode")
+				return
+			}
+
+			detectedMap := make(map[string]string)
+			for _, v := range detected {
+				detectedMap[v.Key] = v.Value
+			}
+
+			for key, entry := range cfg.Replace {
+				from := entry.From
+				if from == "" {
+					from = detectedMap[key]
+				}
+				if from == "" {
+					fmt.Printf("warning: could not detect source value for %q, skipping\n", key)
+					continue
+				}
+				if from == entry.To {
+					continue
+				}
+				replacements = append(replacements, replaceItem{
+					key:  key,
+					from: from,
+					to:   entry.To,
+				})
+			}
+		}
+
+		if len(replacements) == 0 {
+			fmt.Println("nothing to replace")
+			return
+		}
+
+		// Sort by from length descending to avoid partial replacements.
+		sort.Slice(replacements, func(i, j int) bool {
+			return len(replacements[i].from) > len(replacements[j].from)
+		})
+
+		fmt.Println("\nreplacements:")
+		for _, r := range replacements {
+			fmt.Printf("  %s: %q → %q\n", r.key, r.from, r.to)
+		}
+
+		for _, r := range replacements {
+			if len(r.from) <= 3 {
+				fmt.Printf("warning: %q source value %q is very short, may cause false replacements\n", r.key, r.from)
+			}
+		}
+
+		replaceExcludes := []string{".git", ".ntpl", ".ntpl.yaml", ".ntpl.lock", ".ntplignore"}
+		totalFiles := 0
+		totalReplacements := 0
+
+		filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if path == "." {
+				return nil
+			}
+
+			for _, exc := range replaceExcludes {
+				if path == exc || strings.HasPrefix(path, exc+string(filepath.Separator)) {
+					if d.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+			}
+
+			if d.IsDir() {
+				return nil
+			}
+
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return nil
+			}
+
+			// Skip binary files.
+			check := data
+			if len(check) > 8192 {
+				check = check[:8192]
+			}
+			if bytes.Contains(check, []byte{0}) {
+				return nil
+			}
+
+			newData := data
+			fileReplacements := 0
+			for _, r := range replacements {
+				n := bytes.Count(newData, []byte(r.from))
+				if n > 0 {
+					newData = bytes.ReplaceAll(newData, []byte(r.from), []byte(r.to))
+					fileReplacements += n
+				}
+			}
+
+			if fileReplacements == 0 {
+				return nil
+			}
+
+			totalFiles++
+			totalReplacements += fileReplacements
+
+			if replaceDryRun {
+				fmt.Printf("  %s (%d replacements)\n", path, fileReplacements)
+				return nil
+			}
+
+			info, _ := d.Info()
+			if err := os.WriteFile(path, newData, info.Mode()); err != nil {
+				fmt.Printf("  error writing %s: %s\n", path, err)
+			} else {
+				fmt.Printf("  %s (%d replacements)\n", path, fileReplacements)
+			}
+
+			return nil
+		})
+
+		fmt.Println()
+		if replaceDryRun {
+			fmt.Printf("dry-run: would replace %d occurrences in %d files\n", totalReplacements, totalFiles)
+		} else {
+			fmt.Printf("replaced %d occurrences in %d files\n", totalReplacements, totalFiles)
+		}
+	},
+}
+
+type replaceItem struct {
+	key  string
+	from string
+	to   string
+}
+
+func saveReplaceConfig(repls []replaceItem) {
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Println("warning: could not load config:", err)
+		return
+	}
+
+	if cfg.Replace == nil {
+		cfg.Replace = make(map[string]config.ReplaceEntry)
+	}
+	for _, r := range repls {
+		cfg.Replace[r.key] = config.ReplaceEntry{
+			From: r.from,
+			To:   r.to,
+		}
+	}
+
+	if err := config.Save(cfg); err != nil {
+		fmt.Println("warning: could not save config:", err)
+	} else {
+		fmt.Println("saved replace config to .ntpl.yaml")
+	}
+}
+
+func init() {
+	replaceCmd.Flags().BoolVar(&replaceDryRun, "dry-run", false, "show what would be replaced without making changes")
+	replaceCmd.Flags().BoolVar(&replaceSuggest, "suggest", false, "interactively detect and replace variables")
+	rootCmd.AddCommand(replaceCmd)
+}

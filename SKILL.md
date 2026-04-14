@@ -93,6 +93,49 @@ ntpl status
 
 输出字段：repo、ref、commit、synced at、status（`up to date` 或 `update available`）。
 
+### pack — 打包项目为模板
+
+将现有项目转换为模板，自动将项目特定值替换为 `{ntpl:key}` 占位符。
+
+```bash
+ntpl pack -o <output-dir> --suggest          # 自动检测变量
+ntpl pack -o <output-dir> --var org=nilorg   # 手动指定
+ntpl pack -o <output-dir> --suggest --dry-run
+```
+
+| 参数 | 说明 |
+|------|------|
+| `-o`, `--output` | 输出目录（必填） |
+| `--var` | 手动指定变量（key=value，可重复） |
+| `--suggest` | 使用声明式规则自动检测变量 |
+| `--dry-run` | 预览模式 |
+
+输出目录会自动生成 `.ntpl.yaml`（包含 vars 默认值）。
+
+### replace — 替换源值
+
+同步普通仓库后，将源仓库的值替换为自己的值。
+
+```bash
+ntpl replace                  # 从 .ntpl.yaml 的 replace 配置读取
+ntpl replace --suggest        # 交互式检测并替换
+ntpl replace --dry-run
+```
+
+| 参数 | 说明 |
+|------|------|
+| `--suggest` | 交互式：自动检测源值，逐个输入目标值 |
+| `--dry-run` | 预览模式 |
+
+replace 配置格式：
+```yaml
+replace:
+  org: nilorg                   # 简写：auto-detect from
+  project_name:                 # 完整写法
+    from: "template-project"
+    to: "my-app"
+```
+
 ## 配置文件
 
 ### .ntpl.yaml（核心配置）
@@ -238,3 +281,6 @@ ntpl 在项目目录中管理以下文件和目录：
 - `{ntpl:key}` 变量替换在文件写入时执行，未定义的变量保留原样
 - hooks 仅从本地 `.ntpl.yaml` 读取，远程模板的 hooks 不会被合并（安全考虑）
 - 远程配置源：模板仓库根目录的 `.ntpl.yaml` 提供 sync/vars 默认值，本地配置优先
+- pack/replace 的 `--suggest` 使用声明式规则自动检测变量，规则可自定义扩展
+- 检测规则加载顺序：内置 → `~/.config/ntpl/rules/` → `.ntpl/rules/`，同名后者覆盖
+- replace 按值长度降序替换，避免短值误替换长值的子串

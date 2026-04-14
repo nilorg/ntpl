@@ -1,0 +1,12 @@
+name: go
+description: Go project (go.mod)
+priority: 10
+files:
+  - path: go.mod
+    patterns:
+      - regexp: '^module\s+[^/]+/(?P<org>[^/]+)/(?P<project_name>[^/\s]+)'
+        description: org and project name from 3-segment module path
+      - regexp: '^module\s+(?P<module>\S+)$'
+        description: full module path
+      - regexp: '^go\s+(?P<go_version>\S+)$'
+        description: Go version

@@ -1,0 +1,16 @@
+name: docker
+description: Docker/Compose detection
+priority: 20
+files:
+  - path: Dockerfile
+    patterns:
+      - regexp: '^EXPOSE\s+(?P<port>\d+)'
+        description: exposed port
+  - path: docker-compose.yaml
+    patterns:
+      - regexp: '"(?P<port>\d+):\d+"'
+        description: host port mapping
+  - path: docker-compose.yml
+    patterns:
+      - regexp: '"(?P<port>\d+):\d+"'
+        description: host port mapping

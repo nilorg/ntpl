@@ -1,0 +1,24 @@
+name: java
+description: Java project (Maven/Gradle)
+priority: 10
+files:
+  - path: pom.xml
+    patterns:
+      - regexp: '<groupId>(?P<org>[^<]+)</groupId>'
+        description: Maven groupId
+      - regexp: '<artifactId>(?P<project_name>[^<]+)</artifactId>'
+        description: Maven artifactId
+      - regexp: '<version>(?P<version>[^<]+)</version>'
+        description: Maven version
+  - path: build.gradle
+    patterns:
+      - regexp: "group\\s*=\\s*['\"](?P<org>[^'\"]+)"
+        description: Gradle group
+      - regexp: "version\\s*=\\s*['\"](?P<version>[^'\"]+)"
+        description: Gradle version
+  - path: build.gradle.kts
+    patterns:
+      - regexp: 'group\s*=\s*"(?P<org>[^"]+)"'
+        description: Gradle KTS group
+      - regexp: 'version\s*=\s*"(?P<version>[^"]+)"'
+        description: Gradle KTS version

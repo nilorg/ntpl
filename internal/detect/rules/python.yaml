@@ -1,0 +1,24 @@
+name: python
+description: Python project
+priority: 10
+files:
+  - path: pyproject.toml
+    patterns:
+      - regexp: '^name\s*=\s*"(?P<project_name>[^"]+)"'
+        description: project name
+      - regexp: '^version\s*=\s*"(?P<version>[^"]+)"'
+        description: project version
+      - regexp: '^description\s*=\s*"(?P<description>[^"]+)"'
+        description: project description
+  - path: setup.py
+    patterns:
+      - regexp: "name\\s*=\\s*['\"](?P<project_name>[^'\"]+)"
+        description: package name
+      - regexp: "version\\s*=\\s*['\"](?P<version>[^'\"]+)"
+        description: package version
+  - path: setup.cfg
+    patterns:
+      - regexp: '^name\s*=\s*(?P<project_name>\S+)'
+        description: package name
+      - regexp: '^version\s*=\s*(?P<version>\S+)'
+        description: package version

@@ -1,0 +1,10 @@
+name: git
+description: Git remote detection
+priority: 90
+files:
+  - path: .git/config
+    patterns:
+      - regexp: 'url\s*=\s*https?://[^/]+/(?P<org>[^/]+)/(?P<repo>[^/.\s]+)'
+        description: HTTPS remote org and repo
+      - regexp: 'url\s*=\s*git@[^:]+:(?P<org>[^/]+)/(?P<repo>[^/.\s]+)'
+        description: SSH remote org and repo

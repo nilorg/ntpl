@@ -1,0 +1,14 @@
+name: rust
+description: Rust project (Cargo.toml)
+priority: 10
+files:
+  - path: Cargo.toml
+    patterns:
+      - regexp: '^name\s*=\s*"(?P<project_name>[^"]+)"'
+        description: crate name
+      - regexp: '^version\s*=\s*"(?P<version>[^"]+)"'
+        description: crate version
+      - regexp: '^description\s*=\s*"(?P<description>[^"]+)"'
+        description: crate description
+      - regexp: '^license\s*=\s*"(?P<license>[^"]+)"'
+        description: crate license

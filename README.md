@@ -32,6 +32,9 @@
 | 模板变量替换 | `{ntpl:name}` 占位符，sync 时自动替换 |
 | hook 支持 | sync 前后执行自定义脚本 |
 | 远程配置源 | 从模板仓库读取默认 sync/vars 配置 |
+| pack | 打包项目为模板，自动替换值为 `{ntpl:key}` 占位符 |
+| replace | 替换源仓库的值为自己的值（适用于无占位符的仓库） |
+| 声明式检测规则 | YAML 规则自动识别项目变量，支持自定义扩展 |
 
 **安全保证：** 只同步 include 范围内的文件；不删除项目中有但模板中没有的文件；exclude 和 .ntplignore 中的文件不会被触碰。
 
@@ -78,6 +81,10 @@ ntpl status
 | `ntpl sync -i` | 交互式，逐文件确认 |
 | `ntpl diff` | 查看模板与项目差异 |
 | `ntpl status` | 查看同步状态及远程更新 |
+| `ntpl pack -o <dir> --suggest` | 打包项目为模板 |
+| `ntpl pack -o <dir> --var k=v` | 指定变量打包（多个变量重复 `--var`） |
+| `ntpl replace` | 按配置替换源值 |
+| `ntpl replace --suggest` | 交互式检测并替换 |
 
 ## 配置
 
@@ -160,6 +167,7 @@ entries:
 cmd/              CLI 命令入口
 internal/
   config/         配置解析 + lock 文件 + .ntplignore
+  detect/         声明式规则引擎 + 内置规则
   git/            Git clone/export 封装
   sync/           同步、diff、status 核心逻辑
 Makefile          构建 & 开发任务
@@ -208,6 +216,88 @@ hooks:
 - 本地 `exclude` 为空时，使用远程 `exclude`
 - 远程 `vars` 作为默认值，本地同名 key 覆盖远程
 - 远程 `hooks` 不会被合并（安全考虑）
+
+## Pack — 打包项目为模板
+
+将现有项目转换为模板，自动将项目特定值替换为 `{ntpl:key}` 占位符。
+
+```bash
+# 自动检测变量
+ntpl pack -o ../my-template --suggest
+
+# 手动指定变量
+ntpl pack -o ../my-template --var org=nilorg --var project_name=ntpl
+
+# 预览模式
+ntpl pack -o ../my-template --suggest --dry-run
+```
+
+`--suggest` 使用内置声明式规则自动从 `go.mod`、`package.json`、`pom.xml` 等文件中提取变量，展示给用户确认后执行替换。
+
+## Replace — 替换源仓库的值
+
+同步普通仓库（无 `{ntpl:...}` 占位符）后，将源仓库的值替换为自己的值。
+
+```bash
+# 交互式：自动检测源值，逐个输入目标值
+ntpl replace --suggest
+
+# 从配置读取
+ntpl replace
+
+# 预览
+ntpl replace --dry-run
+```
+
+配置格式：
+
+```yaml
+# .ntpl.yaml
+replace:
+  org: nilorg                    # 简写：auto-detect from, 这是 to
+  project_name:                  # 完整写法
+    from: "template-project"
+    to: "my-app"
+```
+
+工作流：`ntpl sync` → `ntpl replace` → 源仓库的值被替换为你的值。
+
+## 声明式检测规则
+
+检测规则是 YAML 文件，定义从哪个文件用什么正则提取什么变量。`pack` 和 `replace` 的 `--suggest` 模式共享同一套规则。
+
+### 规则加载顺序（后者覆盖前者）
+
+1. 内置规则（embed 在二进制中）
+2. 用户规则：`~/.config/ntpl/rules/*.yaml`
+3. 项目规则：`.ntpl/rules/*.yaml`
+
+### 规则格式
+
+```yaml
+name: go
+description: Go project (go.mod)
+priority: 10              # 越小越先扫描，默认 50
+files:
+  - path: go.mod          # 支持 glob
+    patterns:
+      - regexp: '^module\s+[^/]+/(?P<org>[^/]+)/(?P<project_name>[^/\s]+)'
+        description: org and project name
+```
+
+使用 Go 正则命名捕获组 `(?P<var_name>...)` 提取变量。贡献新规则只需添加一个 YAML 文件，不需要写 Go 代码。
+
+### 内置规则
+
+| 规则 | 文件 | 提取变量 |
+|------|------|----------|
+| go | go.mod | org, project_name, module, go_version |
+| node | package.json | org, project_name, version, description, author, license |
+| python | pyproject.toml, setup.py, setup.cfg | project_name, version, description |
+| java | pom.xml, build.gradle, build.gradle.kts | org, project_name, version |
+| rust | Cargo.toml | project_name, version, description, license |
+| docker | Dockerfile, docker-compose.yaml | port |
+| git | .git/config | org, repo |
 
 ## AI / LLM 集成
 

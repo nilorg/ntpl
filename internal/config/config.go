@@ -10,15 +10,30 @@ import (
 )
 
 type Config struct {
-	Templates []Template        `yaml:"templates"`
-	Sync      Sync              `yaml:"sync"`
-	Vars      map[string]string `yaml:"vars"`
-	Hooks     Hooks             `yaml:"hooks"`
+	Templates []Template              `yaml:"templates"`
+	Sync      Sync                    `yaml:"sync"`
+	Vars      map[string]string       `yaml:"vars"`
+	Hooks     Hooks                   `yaml:"hooks"`
+	Replace   map[string]ReplaceEntry `yaml:"replace"`
 }
 
 type Hooks struct {
 	Before string `yaml:"before"`
 	After  string `yaml:"after"`
+}
+
+type ReplaceEntry struct {
+	From string `yaml:"from"`
+	To   string `yaml:"to"`
+}
+
+func (r *ReplaceEntry) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		r.To = value.Value
+		return nil
+	}
+	type plain ReplaceEntry
+	return value.Decode((*plain)(r))
 }
 
 type Template struct {
