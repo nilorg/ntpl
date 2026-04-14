@@ -117,7 +117,7 @@ var packCmd = &cobra.Command{
 				return nil
 			}
 
-			if config.IsExcluded(path, config.BuiltinExcludes) {
+			if config.IsExcluded(path, config.BuiltinExcludes) || config.IsExcluded(path, config.DefaultReplaceExcludes) {
 				if d.IsDir() {
 					return filepath.SkipDir
 				}
@@ -187,8 +187,10 @@ var packCmd = &cobra.Command{
 
 		// Generate .ntpl.yaml in output directory.
 		if !packDryRun {
-			outCfg := map[string]interface{}{
-				"vars": vars,
+			outCfg := config.Config{
+				Sync: config.Sync{
+					Vars: vars,
+				},
 			}
 			yamlData, err := yaml.Marshal(outCfg)
 			if err == nil {
