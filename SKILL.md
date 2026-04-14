@@ -266,6 +266,67 @@ sync:
     - .github
 ```
 
+## 声明式检测规则
+
+检测规则是 YAML 文件，定义从哪个文件用什么正则提取什么变量。`pack` 和 `replace` 的 `--suggest` 模式共享同一套规则。
+
+### 规则加载顺序（后者覆盖前者）
+
+1. 内置规则（embed 在二进制中）
+2. 用户规则：`~/.config/ntpl/rules/*.yaml`
+3. 项目规则：`.ntpl/rules/*.yaml`
+
+同名规则（`name` 字段相同）后者覆盖前者。名称不同则共存，互不影响。
+
+### 规则格式
+
+```yaml
+name: go
+description: Go project (go.mod)
+priority: 10              # 越小越先扫描，默认 50
+files:
+  - path: go.mod          # 支持 glob
+    patterns:
+      - regexp: '^module\s+[^/]+/(?P<org>[^/]+)/(?P<project_name>[^/\s]+)'
+        description: org and project name
+```
+
+使用 Go 正则命名捕获组 `(?P<var_name>...)` 提取变量。贡献新规则只需添加一个 YAML 文件，不需要写 Go 代码。
+
+### 内置规则
+
+| 规则 | 文件 | 提取变量 |
+|------|------|----------|
+| go | go.mod | org, project_name, module, go_version |
+| node | package.json | org, project_name, version, description, author, license |
+| python | pyproject.toml, setup.py, setup.cfg | project_name, version, description |
+| java | pom.xml, build.gradle, build.gradle.kts | org, project_name, version |
+| rust | Cargo.toml | project_name, version, description, license |
+| docker | Dockerfile, docker-compose.yaml | port |
+| git | .git/config | org, repo |
+
+### 在项目中自定义规则
+
+在项目目录下创建 `.ntpl/rules/` 并添加 YAML 文件：
+
+```bash
+mkdir -p .ntpl/rules
+```
+
+```yaml
+# .ntpl/rules/myapp.yaml
+name: myapp                      # 与内置规则名称不同，不会覆盖
+description: "项目自定义检测规则"
+priority: 10
+files:
+  - path: "config.yaml"
+    patterns:
+      - regexp: 'database:\s*(?P<db_host>.+)'
+        description: database host
+```
+
+若 `name` 与内置规则相同（如 `name: go`），则完全覆盖内置的 go 规则。
+
 ## 安全规则
 
 - 以下文件始终被排除，不会被同步覆盖：`.ntpl/`、`.ntpl.yaml`、`.ntpl.lock`、`.ntplignore`

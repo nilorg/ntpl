@@ -79,6 +79,7 @@ var packCmd = &cobra.Command{
 					fmt.Println("aborted")
 					return
 				}
+				fmt.Println("\npacking...")
 			}
 		}
 
@@ -168,6 +169,10 @@ var packCmd = &cobra.Command{
 			totalReplacements += fileReplacements
 			fileCount++
 
+			if !packDryRun && fileCount%500 == 0 {
+				fmt.Printf("\r  processed %d files...", fileCount)
+			}
+
 			if packDryRun {
 				if fileReplacements > 0 {
 					fmt.Printf("  %s (%d replacements)\n", path, fileReplacements)
@@ -210,6 +215,9 @@ var packCmd = &cobra.Command{
 		if packDryRun {
 			fmt.Printf("\ndry-run: would pack %d files to %s\n", fileCount, packOutput)
 		} else {
+			if fileCount >= 500 {
+				fmt.Print("\r\033[K") // clear progress line
+			}
 			fmt.Printf("\npacked %d files to %s\n", fileCount, packOutput)
 		}
 		if totalReplacements > 0 {
