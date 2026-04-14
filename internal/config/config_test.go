@@ -21,14 +21,16 @@ func TestLoadAndSave(t *testing.T) {
 		Sync: Sync{
 			Include: []string{"."},
 			Exclude: []string{"vendor"},
+			Vars:    map[string]string{"project": "demo"},
+			Hooks: Hooks{
+				Before: "echo before",
+				After:  "echo after",
+			},
 		},
-		Vars: map[string]string{"project": "demo"},
-		Hooks: Hooks{
-			Before: "echo before",
-			After:  "echo after",
-		},
-		Replace: map[string]ReplaceEntry{
-			"org": {From: "oldorg", To: "neworg"},
+		Replace: ReplaceConfig{
+			Rules: map[string]ReplaceEntry{
+				"org": {From: "oldorg", To: "neworg"},
+			},
 		},
 	}
 
@@ -56,14 +58,14 @@ func TestLoadAndSave(t *testing.T) {
 	if len(loaded.Sync.Exclude) != 1 || loaded.Sync.Exclude[0] != "vendor" {
 		t.Errorf("Exclude: %+v", loaded.Sync.Exclude)
 	}
-	if loaded.Vars["project"] != "demo" {
-		t.Errorf("Vars: %+v", loaded.Vars)
+	if loaded.Sync.Vars["project"] != "demo" {
+		t.Errorf("Vars: %+v", loaded.Sync.Vars)
 	}
-	if loaded.Hooks.Before != "echo before" {
-		t.Errorf("Hooks.Before: %q", loaded.Hooks.Before)
+	if loaded.Sync.Hooks.Before != "echo before" {
+		t.Errorf("Hooks.Before: %q", loaded.Sync.Hooks.Before)
 	}
-	if loaded.Replace["org"].From != "oldorg" || loaded.Replace["org"].To != "neworg" {
-		t.Errorf("Replace: %+v", loaded.Replace)
+	if loaded.Replace.Rules["org"].From != "oldorg" || loaded.Replace.Rules["org"].To != "neworg" {
+		t.Errorf("Replace: %+v", loaded.Replace.Rules)
 	}
 }
 
@@ -102,8 +104,8 @@ func TestLoadFrom(t *testing.T) {
 sync:
   exclude:
     - "*.log"
-vars:
-  key: value
+  vars:
+    key: value
 `
 	os.WriteFile(path, []byte(data), 0644)
 
@@ -114,8 +116,8 @@ vars:
 	if len(cfg.Templates) != 1 || cfg.Templates[0].Name != "t1" {
 		t.Errorf("Templates: %+v", cfg.Templates)
 	}
-	if cfg.Vars["key"] != "value" {
-		t.Errorf("Vars: %+v", cfg.Vars)
+	if cfg.Sync.Vars["key"] != "value" {
+		t.Errorf("Vars: %+v", cfg.Sync.Vars)
 	}
 }
 
@@ -131,18 +133,18 @@ func TestMergeSync_LocalTakesPrecedence(t *testing.T) {
 		Sync: Sync{
 			Include: []string{"src/"},
 			Exclude: []string{"dist/"},
+			Vars:    map[string]string{"name": "local-val", "only_local": "yes"},
 		},
-		Vars: map[string]string{"name": "local-val", "only_local": "yes"},
 	}
 	remote := Config{
 		Sync: Sync{
 			Include: []string{"lib/"},
 			Exclude: []string{"build/"},
+			Vars:    map[string]string{"name": "remote-val", "only_remote": "yes"},
 		},
-		Vars: map[string]string{"name": "remote-val", "only_remote": "yes"},
 	}
 
-	s, vars := MergeSync(local, remote)
+	s := MergeSync(local, remote)
 
 	// Local include is non-empty, so it should win
 	if len(s.Include) != 1 || s.Include[0] != "src/" {
@@ -152,13 +154,13 @@ func TestMergeSync_LocalTakesPrecedence(t *testing.T) {
 		t.Errorf("Exclude should be local: %+v", s.Exclude)
 	}
 	// Local vars override remote
-	if vars["name"] != "local-val" {
-		t.Errorf("name should be local-val, got %q", vars["name"])
+	if s.Vars["name"] != "local-val" {
+		t.Errorf("name should be local-val, got %q", s.Vars["name"])
 	}
-	if vars["only_local"] != "yes" {
+	if s.Vars["only_local"] != "yes" {
 		t.Errorf("only_local missing")
 	}
-	if vars["only_remote"] != "yes" {
+	if s.Vars["only_remote"] != "yes" {
 		t.Errorf("only_remote missing")
 	}
 }
@@ -169,11 +171,11 @@ func TestMergeSync_EmptyLocalUsesRemote(t *testing.T) {
 		Sync: Sync{
 			Include: []string{"lib/"},
 			Exclude: []string{"build/"},
+			Vars:    map[string]string{"remote_key": "remote_val"},
 		},
-		Vars: map[string]string{"remote_key": "remote_val"},
 	}
 
-	s, vars := MergeSync(local, remote)
+	s := MergeSync(local, remote)
 
 	if len(s.Include) != 1 || s.Include[0] != "lib/" {
 		t.Errorf("Include should fall back to remote: %+v", s.Include)
@@ -181,18 +183,18 @@ func TestMergeSync_EmptyLocalUsesRemote(t *testing.T) {
 	if len(s.Exclude) != 1 || s.Exclude[0] != "build/" {
 		t.Errorf("Exclude should fall back to remote: %+v", s.Exclude)
 	}
-	if vars["remote_key"] != "remote_val" {
-		t.Errorf("remote vars not merged: %+v", vars)
+	if s.Vars["remote_key"] != "remote_val" {
+		t.Errorf("remote vars not merged: %+v", s.Vars)
 	}
 }
 
 func TestMergeSync_BothEmpty(t *testing.T) {
-	s, vars := MergeSync(Config{}, Config{})
+	s := MergeSync(Config{}, Config{})
 	if len(s.Include) != 0 || len(s.Exclude) != 0 {
 		t.Errorf("expected empty sync: %+v", s)
 	}
-	if len(vars) != 0 {
-		t.Errorf("expected empty vars: %+v", vars)
+	if len(s.Vars) != 0 {
+		t.Errorf("expected empty vars: %+v", s.Vars)
 	}
 }
 

@@ -16,10 +16,8 @@ var BuiltinExcludes = []string{
 	".git",
 }
 
-// DefaultDependencyDirs contains default third-party dependency directories.
-// These are excluded from content-modifying operations (replace)
-// but included in file operations (sync, pack).
-var DefaultDependencyDirs = []string{
+// DefaultReplaceExcludes contains default directories excluded from replace.
+var DefaultReplaceExcludes = []string{
 	"vendor", "node_modules",
 }
 
@@ -41,20 +39,23 @@ func IsExcluded(rel string, excludes []string) bool {
 }
 
 type Config struct {
-	Templates      []Template              `yaml:"templates"`
-	Sync           Sync                    `yaml:"sync"`
-	Vars           map[string]string       `yaml:"vars"`
-	Hooks          Hooks                   `yaml:"hooks"`
-	Replace        map[string]ReplaceEntry `yaml:"replace"`
-	DependencyDirs []string                `yaml:"dependency_dirs"`
+	Templates []Template    `yaml:"templates"`
+	Sync      Sync          `yaml:"sync"`
+	Replace   ReplaceConfig `yaml:"replace"`
 }
 
-// GetDependencyDirs returns configured dependency dirs, or defaults if not set.
-func (c Config) GetDependencyDirs() []string {
-	if len(c.DependencyDirs) > 0 {
-		return c.DependencyDirs
+// ReplaceConfig holds settings for the replace command.
+type ReplaceConfig struct {
+	Exclude []string                `yaml:"exclude"`
+	Rules   map[string]ReplaceEntry `yaml:"rules"`
+}
+
+// GetExcludes returns configured replace excludes, or defaults if not set.
+func (r ReplaceConfig) GetExcludes() []string {
+	if len(r.Exclude) > 0 {
+		return r.Exclude
 	}
-	return DefaultDependencyDirs
+	return DefaultReplaceExcludes
 }
 
 type Hooks struct {
@@ -83,8 +84,10 @@ type Template struct {
 }
 
 type Sync struct {
-	Include []string `yaml:"include"`
-	Exclude []string `yaml:"exclude"`
+	Include []string          `yaml:"include"`
+	Exclude []string          `yaml:"exclude"`
+	Vars    map[string]string `yaml:"vars"`
+	Hooks   Hooks             `yaml:"hooks"`
 }
 
 type LockEntry struct {
@@ -126,7 +129,8 @@ func LoadFrom(path string) (Config, error) {
 }
 
 // MergeSync merges local and remote configs. Local settings take precedence.
-func MergeSync(local, remote Config) (Sync, map[string]string) {
+// Remote hooks are never merged (security).
+func MergeSync(local, remote Config) Sync {
 	s := local.Sync
 	if len(s.Include) == 0 && len(remote.Sync.Include) > 0 {
 		s.Include = remote.Sync.Include
@@ -135,13 +139,16 @@ func MergeSync(local, remote Config) (Sync, map[string]string) {
 		s.Exclude = remote.Sync.Exclude
 	}
 	vars := make(map[string]string)
-	for k, v := range remote.Vars {
+	for k, v := range remote.Sync.Vars {
 		vars[k] = v
 	}
-	for k, v := range local.Vars {
+	for k, v := range local.Sync.Vars {
 		vars[k] = v
 	}
-	return s, vars
+	s.Vars = vars
+	// Always use local hooks, never merge remote hooks.
+	s.Hooks = local.Sync.Hooks
+	return s
 }
 
 func Save(cfg Config) error {

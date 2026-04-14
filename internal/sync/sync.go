@@ -63,11 +63,11 @@ func runHook(name, script string) error {
 	return nil
 }
 
-func loadRemoteDefaults(cfg config.Config, dir string) (config.Sync, map[string]string) {
+func loadRemoteDefaults(cfg config.Config, dir string) config.Sync {
 	remotePath := filepath.Join(dir, ".ntpl.yaml")
 	remote, err := config.LoadFrom(remotePath)
 	if err != nil {
-		return cfg.Sync, cfg.Vars
+		return cfg.Sync
 	}
 	fmt.Println("  loaded remote config defaults from template")
 	return config.MergeSync(cfg, remote)
@@ -77,7 +77,7 @@ func Run(cfg config.Config, opts Options) {
 	fmt.Println("sync template...")
 
 	if !opts.DryRun {
-		if err := runHook("before", cfg.Hooks.Before); err != nil {
+		if err := runHook("before", cfg.Sync.Hooks.Before); err != nil {
 			fmt.Println("error:", err)
 			return
 		}
@@ -98,7 +98,7 @@ func Run(cfg config.Config, opts Options) {
 			continue
 		}
 
-		syncCfg, vars := loadRemoteDefaults(cfg, dir)
+		syncCfg := loadRemoteDefaults(cfg, dir)
 		excludes := mergeExcludes(syncCfg)
 
 		paths := syncCfg.Include
@@ -112,13 +112,13 @@ func Run(cfg config.Config, opts Options) {
 
 			if opts.DryRun {
 				fmt.Printf("[%s] dry-run: %s -> %s\n", tpl.Name, src, dst)
-				dryRunDir(src, dst, excludes, vars)
+				dryRunDir(src, dst, excludes, syncCfg.Vars)
 			} else if opts.Interactive {
 				fmt.Printf("[%s] interactive sync: %s -> %s\n", tpl.Name, src, dst)
-				interactiveSyncDir(src, dst, excludes, vars)
+				interactiveSyncDir(src, dst, excludes, syncCfg.Vars)
 			} else {
 				fmt.Printf("[%s] sync: %s -> %s\n", tpl.Name, src, dst)
-				if err := syncDir(src, dst, excludes, vars); err != nil {
+				if err := syncDir(src, dst, excludes, syncCfg.Vars); err != nil {
 					fmt.Printf("[%s] sync failed for %s: %s\n", tpl.Name, path, err)
 				}
 			}
@@ -141,7 +141,7 @@ func Run(cfg config.Config, opts Options) {
 		}
 		fmt.Println("\nsync done")
 
-		if err := runHook("after", cfg.Hooks.After); err != nil {
+		if err := runHook("after", cfg.Sync.Hooks.After); err != nil {
 			fmt.Println("error:", err)
 		}
 	} else {
@@ -161,7 +161,7 @@ func Diff(cfg config.Config) {
 			continue
 		}
 
-		syncCfg, vars := loadRemoteDefaults(cfg, dir)
+		syncCfg := loadRemoteDefaults(cfg, dir)
 		excludes := mergeExcludes(syncCfg)
 
 		paths := syncCfg.Include
@@ -173,7 +173,7 @@ func Diff(cfg config.Config) {
 			src := filepath.Join(dir, path)
 			dst := filepath.Join(".", path)
 
-			if err := diffDir(src, dst, excludes, vars); err != nil {
+			if err := diffDir(src, dst, excludes, syncCfg.Vars); err != nil {
 				fmt.Printf("[%s] diff failed for %s: %s\n", tpl.Name, path, err)
 			}
 		}

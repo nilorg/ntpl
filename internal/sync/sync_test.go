@@ -439,16 +439,18 @@ func TestRunHook_Script(t *testing.T) {
 func TestLoadRemoteDefaults_NoRemoteConfig(t *testing.T) {
 	dir := t.TempDir()
 	cfg := config.Config{
-		Sync: config.Sync{Include: []string{"src/"}},
-		Vars: map[string]string{"k": "v"},
+		Sync: config.Sync{
+			Include: []string{"src/"},
+			Vars:    map[string]string{"k": "v"},
+		},
 	}
 
-	s, vars := loadRemoteDefaults(cfg, dir)
+	s := loadRemoteDefaults(cfg, dir)
 	if len(s.Include) != 1 || s.Include[0] != "src/" {
 		t.Errorf("should return local sync: %+v", s)
 	}
-	if vars["k"] != "v" {
-		t.Errorf("should return local vars: %+v", vars)
+	if s.Vars["k"] != "v" {
+		t.Errorf("should return local vars: %+v", s.Vars)
 	}
 }
 
@@ -457,25 +459,27 @@ func TestLoadRemoteDefaults_WithRemoteConfig(t *testing.T) {
 	remoteYAML := `sync:
   exclude:
     - "*.generated"
-vars:
-  remote_key: remote_val
+  vars:
+    remote_key: remote_val
 `
 	os.WriteFile(filepath.Join(dir, ".ntpl.yaml"), []byte(remoteYAML), 0644)
 
 	cfg := config.Config{
-		Vars: map[string]string{"local_key": "local_val"},
+		Sync: config.Sync{
+			Vars: map[string]string{"local_key": "local_val"},
+		},
 	}
 
-	s, vars := loadRemoteDefaults(cfg, dir)
+	s := loadRemoteDefaults(cfg, dir)
 	// Empty local exclude -> should pick up remote
 	if len(s.Exclude) != 1 || s.Exclude[0] != "*.generated" {
 		t.Errorf("should have remote excludes: %+v", s)
 	}
-	if vars["remote_key"] != "remote_val" {
-		t.Errorf("should have remote var: %+v", vars)
+	if s.Vars["remote_key"] != "remote_val" {
+		t.Errorf("should have remote var: %+v", s.Vars)
 	}
-	if vars["local_key"] != "local_val" {
-		t.Errorf("should keep local var: %+v", vars)
+	if s.Vars["local_key"] != "local_val" {
+		t.Errorf("should keep local var: %+v", s.Vars)
 	}
 }
 
@@ -550,7 +554,9 @@ func TestRun_DryRun(t *testing.T) {
 		Templates: []config.Template{
 			{Name: "test", Repo: bare, Ref: "main"},
 		},
-		Vars: map[string]string{"name": "world"},
+		Sync: config.Sync{
+			Vars: map[string]string{"name": "world"},
+		},
 	}
 
 	Run(cfg, Options{DryRun: true})
@@ -572,7 +578,9 @@ func TestRun_Normal(t *testing.T) {
 		Templates: []config.Template{
 			{Name: "test", Repo: bare, Ref: "main"},
 		},
-		Vars: map[string]string{"name": "world"},
+		Sync: config.Sync{
+			Vars: map[string]string{"name": "world"},
+		},
 	}
 
 	Run(cfg, Options{})
@@ -623,9 +631,11 @@ func TestRun_WithHooks(t *testing.T) {
 		Templates: []config.Template{
 			{Name: "test", Repo: bare, Ref: "main"},
 		},
-		Hooks: config.Hooks{
-			Before: "touch " + beforeMarker,
-			After:  "touch " + afterMarker,
+		Sync: config.Sync{
+			Hooks: config.Hooks{
+				Before: "touch " + beforeMarker,
+				After:  "touch " + afterMarker,
+			},
 		},
 	}
 

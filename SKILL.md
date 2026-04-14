@@ -130,10 +130,11 @@ ntpl replace --dry-run
 replace 配置格式：
 ```yaml
 replace:
-  org: nilorg                   # 简写：auto-detect from
-  project_name:                 # 完整写法
-    from: "template-project"
-    to: "my-app"
+  rules:
+    org: nilorg                   # 简写：auto-detect from
+    project_name:                 # 完整写法
+      from: "template-project"
+      to: "my-app"
 ```
 
 ## 配置文件
@@ -153,18 +154,22 @@ sync:
   exclude:                       # 排除的目录/文件
     - .env
     - config.local.yaml
+  vars:                          # 模板变量，替换 {ntpl:key} 占位符
+    project_name: my-app
+    org: nilorg
+  hooks:                         # sync 前后执行脚本
+    before: ./scripts/backup.sh
+    after: ./scripts/gen.sh
 
-vars:                            # 模板变量，替换 {ntpl:key} 占位符
-  project_name: my-app
-  org: nilorg
-
-hooks:                           # sync 前后执行脚本
-  before: ./scripts/backup.sh
-  after: ./scripts/gen.sh
-
-dependency_dirs:                 # replace 跳过的依赖目录（默认 vendor, node_modules）
-  - vendor
-  - node_modules
+replace:
+  exclude:                       # replace 跳过的目录（默认 vendor, node_modules）
+    - vendor
+    - node_modules
+  rules:                         # 替换规则
+    org: nilorg
+    project_name:
+      from: "template-project"
+      to: "my-app"
 ```
 
 支持多模板源：
@@ -283,9 +288,9 @@ ntpl 在项目目录中管理以下文件和目录：
 - include 为空时同步模板仓库的全部文件
 - glob 匹配规则同 Go `filepath.Match`：`*` 匹配非分隔符字符，`?` 匹配单个字符
 - `{ntpl:key}` 变量替换在文件写入时执行，未定义的变量保留原样
-- hooks 仅从本地 `.ntpl.yaml` 读取，远程模板的 hooks 不会被合并（安全考虑）
-- 远程配置源：模板仓库根目录的 `.ntpl.yaml` 提供 sync/vars 默认值，本地配置优先
+- hooks 仅从本地 `.ntpl.yaml` 的 `sync.hooks` 读取，远程模板的 hooks 不会被合并（安全考虑）
+- 远程配置源：模板仓库根目录的 `.ntpl.yaml` 提供 sync 默认值，本地配置优先
 - pack/replace 的 `--suggest` 使用声明式规则自动检测变量，规则可自定义扩展
 - 检测规则加载顺序：内置 → `~/.config/ntpl/rules/` → `.ntpl/rules/`，同名后者覆盖
 - replace 按值长度降序替换，避免短值误替换长值的子串
-- replace 默认跳过 `vendor`、`node_modules` 等依赖目录，可通过 `dependency_dirs` 自定义
+- replace 默认跳过 `vendor`、`node_modules` 等依赖目录，可通过 `replace.exclude` 自定义

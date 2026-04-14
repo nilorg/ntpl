@@ -29,7 +29,7 @@ var replaceCmd = &cobra.Command{
 		detected := detect.Detect(rules, ".")
 
 		var replacements []replaceItem
-		depDirs := config.DefaultDependencyDirs
+		depDirs := config.DefaultReplaceExcludes
 
 		if replaceSuggest {
 			if len(detected) == 0 {
@@ -67,9 +67,9 @@ var replaceCmd = &cobra.Command{
 				fmt.Println("error:", err)
 				return
 			}
-			depDirs = cfg.GetDependencyDirs()
+			depDirs = cfg.Replace.GetExcludes()
 
-			if len(cfg.Replace) == 0 {
+			if len(cfg.Replace.Rules) == 0 {
 				fmt.Println("no replace rules in .ntpl.yaml, use --suggest for interactive mode")
 				return
 			}
@@ -79,7 +79,7 @@ var replaceCmd = &cobra.Command{
 				detectedMap[v.Key] = v.Value
 			}
 
-			for key, entry := range cfg.Replace {
+			for key, entry := range cfg.Replace.Rules {
 				from := entry.From
 				if from == "" {
 					from = detectedMap[key]
@@ -211,11 +211,11 @@ func saveReplaceConfig(repls []replaceItem) {
 		return
 	}
 
-	if cfg.Replace == nil {
-		cfg.Replace = make(map[string]config.ReplaceEntry)
+	if cfg.Replace.Rules == nil {
+		cfg.Replace.Rules = make(map[string]config.ReplaceEntry)
 	}
 	for _, r := range repls {
-		cfg.Replace[r.key] = config.ReplaceEntry{
+		cfg.Replace.Rules[r.key] = config.ReplaceEntry{
 			From: r.from,
 			To:   r.to,
 		}

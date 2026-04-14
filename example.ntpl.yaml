@@ -1,0 +1,97 @@
+# =============================================================================
+# ntpl 配置文件示例 (.ntpl.yaml)
+# 完整功能参考，实际使用时按需保留所需配置项
+# 文档: https://github.com/nilorg/ntpl
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 模板源列表
+# 支持多个模板仓库，每个模板有唯一名称
+# -----------------------------------------------------------------------------
+templates:
+  # 主模板：后端项目脚手架
+  - name: default                # 模板名（唯一标识，用于 lock 和缓存目录）
+    repo: https://github.com/your-org/backend-template.git  # Git 仓库 URL
+    ref: main                    # 分支名、tag 或 commit hash（如 v1.0.0 或 a1b2c3d）
+
+  # 可选：基础设施模板
+  # - name: infra
+  #   repo: https://github.com/your-org/infra-template.git
+  #   ref: v1.2.0              # 使用 tag 锁定版本
+
+  # 可选：CI/CD 模板
+  # - name: ci
+  #   repo: https://github.com/your-org/ci-template.git
+  #   ref: a1b2c3d4            # 使用 commit hash 精确锁定
+
+# -----------------------------------------------------------------------------
+# sync 配置
+# 控制同步行为：文件范围、变量替换、生命周期钩子
+# 命令: ntpl sync / ntpl sync --dry-run / ntpl sync -i
+# -----------------------------------------------------------------------------
+sync:
+  # 要同步的目录或文件列表（为空则同步模板仓库的全部文件）
+  # 支持 filepath.Match glob: * 匹配非分隔符字符，? 匹配单个字符
+  include:
+    - src
+    - configs
+    - Makefile
+    # - .github              # 同步 CI 配置
+
+  # 排除的目录或文件（不会被同步覆盖）
+  # 也可使用 .ntplignore 文件（类 .gitignore 语法，每行一个 glob）
+  exclude:
+    - .env                   # 本地环境变量
+    - config.local.yaml      # 本地配置
+    - "*.secret"             # 所有密钥文件
+
+  # 模板变量
+  # 模板文件中的 {ntpl:key} 占位符会被替换为对应值
+  # 未定义的变量保留原样不替换
+  vars:
+    project_name: my-app     # 项目名称
+    org: nilorg              # 组织名
+    module: github.com/nilorg/my-app  # Go module 路径
+    port: "8080"             # 服务端口（字符串类型）
+
+  # 生命周期钩子
+  # 执行顺序: before → 文件同步 → after
+  # 任一 hook 返回非零退出码则中止同步
+  # dry-run 模式下不执行 hook
+  # 安全规则: 远程模板的 hooks 不会被合并，仅读取本地配置
+  hooks:
+    before: echo "backup before sync"    # sync 前执行
+    after: make generate                 # sync 后执行（如代码生成）
+    # before: ./scripts/backup.sh        # 也可以是脚本文件
+    # after: ./scripts/post-sync.sh
+
+# -----------------------------------------------------------------------------
+# replace 配置
+# 将源仓库中的特定值替换为自己的值（适用于无 {ntpl:...} 占位符的模板仓库）
+# 命令: ntpl replace / ntpl replace --suggest / ntpl replace --dry-run
+# 工作流: ntpl sync → ntpl replace
+# -----------------------------------------------------------------------------
+replace:
+  # 排除目录列表（replace 时跳过，不修改第三方代码）
+  # 未配置时默认排除: vendor, node_modules
+  # sync 和 pack 命令不受此配置影响
+  exclude:
+    - vendor                 # Go 依赖
+    - node_modules           # Node.js 依赖
+    # - third_party          # 其他第三方代码目录
+
+  # 替换规则
+  # 支持简写和完整写法
+  # 替换按值长度降序执行，避免短值误替换长值的子串
+  rules:
+    # 简写: value 是目标值，源值通过声明式规则自动检测
+    org: nilorg
+
+    # 完整写法: 明确指定 from（源值）和 to（目标值）
+    project_name:
+      from: "template-project"
+      to: "my-app"
+
+    module:
+      from: "github.com/template-org/template-project"
+      to: "github.com/nilorg/my-app"
