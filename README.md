@@ -35,6 +35,7 @@
 | pack | 打包项目为模板，自动替换值为 `{ntpl:key}` 占位符 |
 | replace | 替换源仓库的值为自己的值（适用于无占位符的仓库） |
 | 声明式检测规则 | YAML 规则自动识别项目变量，支持自定义扩展 |
+| 依赖目录排除 | replace 自动跳过 vendor 等第三方目录，可配置 |
 
 **安全保证：** 只同步 include 范围内的文件；不删除项目中有但模板中没有的文件；exclude 和 .ntplignore 中的文件不会被触碰。
 
@@ -112,6 +113,10 @@ vars:                 # 模板变量，替换 {ntpl:key}
 hooks:                # sync 前后执行脚本
   before: ./scripts/backup.sh
   after: ./scripts/gen.sh
+
+dependency_dirs:      # replace 时跳过的依赖目录（默认 vendor, node_modules）
+  - vendor
+  - node_modules
 ```
 
 多模板源：
@@ -261,6 +266,21 @@ replace:
 ```
 
 工作流：`ntpl sync` → `ntpl replace` → 源仓库的值被替换为你的值。
+
+## 依赖目录排除
+
+`replace` 命令默认跳过 `vendor`、`node_modules` 等第三方依赖目录，避免修改非项目代码。
+
+可通过 `dependency_dirs` 配置自定义需要跳过的目录：
+
+```yaml
+dependency_dirs:
+  - vendor
+  - node_modules
+  - third_party
+```
+
+未配置时使用默认值（`vendor`、`node_modules`）。`sync` 和 `pack` 命令不受此配置影响。
 
 ## 声明式检测规则
 

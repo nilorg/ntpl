@@ -18,9 +18,6 @@ import (
 
 const baseDir = ".ntpl"
 
-// builtinExcludes are always excluded from sync/diff to prevent self-overwrite.
-var builtinExcludes = []string{".ntpl", ".ntpl.yaml", ".ntpl.lock", ".ntplignore"}
-
 var varRe = regexp.MustCompile(`\{ntpl:(\w+)\}`)
 
 // Options controls sync behavior.
@@ -30,7 +27,7 @@ type Options struct {
 }
 
 func mergeExcludes(cfg config.Sync) []string {
-	excludes := append(builtinExcludes, cfg.Exclude...)
+	excludes := append(config.BuiltinExcludes, cfg.Exclude...)
 	excludes = append(excludes, config.LoadIgnore()...)
 	return excludes
 }
@@ -227,7 +224,7 @@ func dryRunDir(src, dst string, excludes []string, vars map[string]string) {
 		if err != nil || d.IsDir() {
 			if d != nil && d.IsDir() {
 				rel, _ := filepath.Rel(src, path)
-				if rel != "." && isExcluded(rel, excludes) {
+				if rel != "." && config.IsExcluded(rel, excludes) {
 					return filepath.SkipDir
 				}
 			}
@@ -235,7 +232,7 @@ func dryRunDir(src, dst string, excludes []string, vars map[string]string) {
 		}
 
 		rel, _ := filepath.Rel(src, path)
-		if isExcluded(rel, excludes) {
+		if config.IsExcluded(rel, excludes) {
 			return nil
 		}
 
@@ -267,7 +264,7 @@ func interactiveSyncDir(src, dst string, excludes []string, vars map[string]stri
 			return nil
 		}
 
-		if isExcluded(rel, excludes) {
+		if config.IsExcluded(rel, excludes) {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -320,24 +317,6 @@ func interactiveSyncDir(src, dst string, excludes []string, vars map[string]stri
 	})
 }
 
-// isExcluded checks if a relative path matches any exclude pattern.
-func isExcluded(rel string, excludes []string) bool {
-	base := filepath.Base(rel)
-
-	for _, pattern := range excludes {
-		if matched, _ := filepath.Match(pattern, rel); matched {
-			return true
-		}
-		if matched, _ := filepath.Match(pattern, base); matched {
-			return true
-		}
-		if strings.HasPrefix(rel, pattern+string(filepath.Separator)) || rel == pattern {
-			return true
-		}
-	}
-	return false
-}
-
 // syncDir copies files from src to dst, skipping excluded paths.
 func syncDir(src, dst string, excludes []string, vars map[string]string) error {
 	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
@@ -350,7 +329,7 @@ func syncDir(src, dst string, excludes []string, vars map[string]string) error {
 			return nil
 		}
 
-		if isExcluded(rel, excludes) {
+		if config.IsExcluded(rel, excludes) {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -387,7 +366,7 @@ func diffDir(src, dst string, excludes []string, vars map[string]string) error {
 			return err
 		}
 		rel, _ := filepath.Rel(src, path)
-		if !isExcluded(rel, excludes) {
+		if !config.IsExcluded(rel, excludes) {
 			files[rel] = true
 		}
 		return nil
@@ -398,7 +377,7 @@ func diffDir(src, dst string, excludes []string, vars map[string]string) error {
 			return err
 		}
 		rel, _ := filepath.Rel(dst, path)
-		if !isExcluded(rel, excludes) {
+		if !config.IsExcluded(rel, excludes) {
 			files[rel] = true
 		}
 		return nil

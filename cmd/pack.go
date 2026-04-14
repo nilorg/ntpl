@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/nilorg/ntpl/internal/config"
 	"github.com/nilorg/ntpl/internal/detect"
 
 	"github.com/spf13/cobra"
@@ -104,7 +105,6 @@ var packCmd = &cobra.Command{
 			}
 		}
 
-		packExcludes := []string{".git", ".ntpl"}
 		fileCount := 0
 		totalReplacements := 0
 
@@ -117,13 +117,11 @@ var packCmd = &cobra.Command{
 				return nil
 			}
 
-			for _, exc := range packExcludes {
-				if path == exc || strings.HasPrefix(path, exc+string(filepath.Separator)) {
-					if d.IsDir() {
-						return filepath.SkipDir
-					}
-					return nil
+			if config.IsExcluded(path, config.BuiltinExcludes) {
+				if d.IsDir() {
+					return filepath.SkipDir
 				}
+				return nil
 			}
 
 			target := filepath.Join(packOutput, path)

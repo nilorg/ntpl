@@ -161,6 +161,10 @@ vars:                            # 模板变量，替换 {ntpl:key} 占位符
 hooks:                           # sync 前后执行脚本
   before: ./scripts/backup.sh
   after: ./scripts/gen.sh
+
+dependency_dirs:                 # replace 跳过的依赖目录（默认 vendor, node_modules）
+  - vendor
+  - node_modules
 ```
 
 支持多模板源：
@@ -284,3 +288,4 @@ ntpl 在项目目录中管理以下文件和目录：
 - pack/replace 的 `--suggest` 使用声明式规则自动检测变量，规则可自定义扩展
 - 检测规则加载顺序：内置 → `~/.config/ntpl/rules/` → `.ntpl/rules/`，同名后者覆盖
 - replace 按值长度降序替换，避免短值误替换长值的子串
+- replace 默认跳过 `vendor`、`node_modules` 等依赖目录，可通过 `dependency_dirs` 自定义

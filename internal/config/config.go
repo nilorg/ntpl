@@ -4,17 +4,57 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
+// BuiltinExcludes contains paths that ntpl should always skip (own files + VCS).
+var BuiltinExcludes = []string{
+	".ntpl", ".ntpl.yaml", ".ntpl.lock", ".ntplignore",
+	".git",
+}
+
+// DefaultDependencyDirs contains default third-party dependency directories.
+// These are excluded from content-modifying operations (replace)
+// but included in file operations (sync, pack).
+var DefaultDependencyDirs = []string{
+	"vendor", "node_modules",
+}
+
+// IsExcluded checks if a relative path matches any of the given exclude patterns.
+func IsExcluded(rel string, excludes []string) bool {
+	base := filepath.Base(rel)
+	for _, pattern := range excludes {
+		if matched, _ := filepath.Match(pattern, rel); matched {
+			return true
+		}
+		if matched, _ := filepath.Match(pattern, base); matched {
+			return true
+		}
+		if strings.HasPrefix(rel, pattern+string(filepath.Separator)) || rel == pattern {
+			return true
+		}
+	}
+	return false
+}
+
 type Config struct {
-	Templates []Template              `yaml:"templates"`
-	Sync      Sync                    `yaml:"sync"`
-	Vars      map[string]string       `yaml:"vars"`
-	Hooks     Hooks                   `yaml:"hooks"`
-	Replace   map[string]ReplaceEntry `yaml:"replace"`
+	Templates      []Template              `yaml:"templates"`
+	Sync           Sync                    `yaml:"sync"`
+	Vars           map[string]string       `yaml:"vars"`
+	Hooks          Hooks                   `yaml:"hooks"`
+	Replace        map[string]ReplaceEntry `yaml:"replace"`
+	DependencyDirs []string                `yaml:"dependency_dirs"`
+}
+
+// GetDependencyDirs returns configured dependency dirs, or defaults if not set.
+func (c Config) GetDependencyDirs() []string {
+	if len(c.DependencyDirs) > 0 {
+		return c.DependencyDirs
+	}
+	return DefaultDependencyDirs
 }
 
 type Hooks struct {

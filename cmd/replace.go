@@ -29,6 +29,7 @@ var replaceCmd = &cobra.Command{
 		detected := detect.Detect(rules, ".")
 
 		var replacements []replaceItem
+		depDirs := config.DefaultDependencyDirs
 
 		if replaceSuggest {
 			if len(detected) == 0 {
@@ -66,6 +67,7 @@ var replaceCmd = &cobra.Command{
 				fmt.Println("error:", err)
 				return
 			}
+			depDirs = cfg.GetDependencyDirs()
 
 			if len(cfg.Replace) == 0 {
 				fmt.Println("no replace rules in .ntpl.yaml, use --suggest for interactive mode")
@@ -118,7 +120,6 @@ var replaceCmd = &cobra.Command{
 			}
 		}
 
-		replaceExcludes := []string{".git", ".ntpl", ".ntpl.yaml", ".ntpl.lock", ".ntplignore"}
 		totalFiles := 0
 		totalReplacements := 0
 
@@ -131,13 +132,11 @@ var replaceCmd = &cobra.Command{
 				return nil
 			}
 
-			for _, exc := range replaceExcludes {
-				if path == exc || strings.HasPrefix(path, exc+string(filepath.Separator)) {
-					if d.IsDir() {
-						return filepath.SkipDir
-					}
-					return nil
+			if config.IsExcluded(path, config.BuiltinExcludes) || config.IsExcluded(path, depDirs) {
+				if d.IsDir() {
+					return filepath.SkipDir
 				}
+				return nil
 			}
 
 			if d.IsDir() {

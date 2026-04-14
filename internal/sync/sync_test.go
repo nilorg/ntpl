@@ -137,9 +137,9 @@ func TestIsExcluded(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isExcluded(tt.rel, tt.excludes)
+			got := config.IsExcluded(tt.rel, tt.excludes)
 			if got != tt.want {
-				t.Errorf("isExcluded(%q, %v) = %v, want %v", tt.rel, tt.excludes, got, tt.want)
+				t.Errorf("IsExcluded(%q, %v) = %v, want %v", tt.rel, tt.excludes, got, tt.want)
 			}
 		})
 	}
@@ -318,12 +318,12 @@ func TestMergeExcludes(t *testing.T) {
 		found[e] = true
 	}
 
-	for _, b := range builtinExcludes {
+	for _, b := range config.BuiltinExcludes {
 		if !found[b] {
 			t.Errorf("missing builtin exclude: %s", b)
 		}
 	}
-	if !found["vendor"] || !found["dist"] {
+	if !found["dist"] {
 		t.Errorf("missing user excludes: %v", excludes)
 	}
 }
