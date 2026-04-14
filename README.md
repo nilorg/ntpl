@@ -310,7 +310,7 @@ replace:
 
 1. 内置规则（embed 在二进制中）
 2. 用户规则：`~/.config/ntpl/rules/*.yaml`
-3. 项目规则：`.ntpl/rules/*.yaml`
+3. 项目规则：`.ntpl/rules/*.yaml`（ntpl 会自动在 `.gitignore` 中添加 `!.ntpl/rules/` 例外，确保规则纳入版本控制）
 
 ### 规则格式
 

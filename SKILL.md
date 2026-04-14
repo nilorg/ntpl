@@ -307,7 +307,7 @@ files:
 
 ### 在项目中自定义规则
 
-在项目目录下创建 `.ntpl/rules/` 并添加 YAML 文件：
+在项目目录下创建 `.ntpl/rules/` 并添加 YAML 文件。该目录虽然位于 `.ntpl/` 下，但 ntpl 会自动在 `.gitignore` 中添加 `!.ntpl/rules/` 例外，确保规则文件纳入版本控制。
 
 ```bash
 mkdir -p .ntpl/rules
@@ -343,6 +343,7 @@ ntpl 在项目目录中管理以下文件和目录：
 .ntplignore          用户编辑的排除规则（需纳入版本控制）
 .ntpl.lock           自动生成的版本锁（建议纳入版本控制）
 .ntpl/               缓存目录（不纳入版本控制）
+  rules/             项目自定义检测规则（纳入版本控制）
   template/
     <name>/          每个模板源的文件快照
 ```

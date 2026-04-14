@@ -64,7 +64,7 @@ var initCmd = &cobra.Command{
 }
 
 // ntplIgnoreEntries are the lines ntpl needs in .gitignore.
-var ntplIgnoreEntries = []string{".ntpl/", ".ntpl.lock"}
+var ntplIgnoreEntries = []string{".ntpl/", "!.ntpl/rules/", ".ntpl.lock"}
 
 func ensureGitignore() {
 	existing := make(map[string]bool)
