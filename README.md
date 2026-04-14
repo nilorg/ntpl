@@ -29,6 +29,9 @@
 | 版本锁定 | .ntpl.lock 记录同步的 commit hash |
 | status | 查看各模板同步状态及远程更新 |
 | 跨平台 | 纯 Go 实现，无 rsync/diff 等外部依赖 |
+| 模板变量替换 | `{ntpl:name}` 占位符，sync 时自动替换 |
+| hook 支持 | sync 前后执行自定义脚本 |
+| 远程配置源 | 从模板仓库读取默认 sync/vars 配置 |
 
 **安全保证：** 只同步 include 范围内的文件；不删除项目中有但模板中没有的文件；exclude 和 .ntplignore 中的文件不会被触碰。
 
@@ -93,6 +96,15 @@ sync:
   exclude:
     - .env
     - config.local.yaml
+
+vars:                 # 模板变量，替换 {ntpl:key}
+  project_name: my-app
+  org: nilorg
+  port: "8080"
+
+hooks:                # sync 前后执行脚本
+  before: ./scripts/backup.sh
+  after: ./scripts/gen.sh
 ```
 
 多模板源：
@@ -153,11 +165,49 @@ internal/
 Makefile          构建 & 开发任务
 ```
 
-## 未来规划
+## 模板变量替换
 
-- 模板变量替换（占位符自动替换）
-- hook 支持（sync 前后执行自定义脚本）
-- 远程配置源（从模板仓库读取默认 sync 配置）
+使用 `{ntpl:name}` 占位符语法，避免与 Go/JS/Shell/Jinja2 等语言模板冲突。
+
+在 `.ntpl.yaml` 中定义变量：
+
+```yaml
+vars:
+  project_name: my-app
+  org: nilorg
+  port: "8080"
+```
+
+模板文件中使用占位符：
+
+```
+module {ntpl:org}/{ntpl:project_name}
+listen: :{ntpl:port}
+```
+
+sync 时自动将 `{ntpl:key}` 替换为对应值。未定义的变量保留原样不替换。
+
+## Hook 支持
+
+在 sync 前后执行自定义脚本：
+
+```yaml
+hooks:
+  before: ./scripts/backup.sh
+  after: ./scripts/gen.sh
+```
+
+执行顺序：`before` → 文件同步 → `after`。任一 hook 返回非零退出码则中止。dry-run 模式下不执行 hook。
+
+## 远程配置源
+
+模板仓库根目录可放置 `.ntpl.yaml`，提供默认的 sync 和 vars 配置。同步时自动读取并与本地配置合并，**本地配置始终优先**。
+
+合并规则：
+- 本地 `include` 为空时，使用远程 `include`
+- 本地 `exclude` 为空时，使用远程 `exclude`
+- 远程 `vars` 作为默认值，本地同名 key 覆盖远程
+- 远程 `hooks` 不会被合并（安全考虑）
 
 ## AI / LLM 集成
 

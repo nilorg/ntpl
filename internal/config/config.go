@@ -10,8 +10,15 @@ import (
 )
 
 type Config struct {
-	Templates []Template `yaml:"templates"`
-	Sync      Sync       `yaml:"sync"`
+	Templates []Template        `yaml:"templates"`
+	Sync      Sync              `yaml:"sync"`
+	Vars      map[string]string `yaml:"vars"`
+	Hooks     Hooks             `yaml:"hooks"`
+}
+
+type Hooks struct {
+	Before string `yaml:"before"`
+	After  string `yaml:"after"`
 }
 
 type Template struct {
@@ -48,6 +55,38 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("parse .ntpl.yaml: %w", err)
 	}
 	return cfg, nil
+}
+
+// LoadFrom loads a Config from the specified file path.
+func LoadFrom(path string) (Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Config{}, err
+	}
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+// MergeSync merges local and remote configs. Local settings take precedence.
+func MergeSync(local, remote Config) (Sync, map[string]string) {
+	s := local.Sync
+	if len(s.Include) == 0 && len(remote.Sync.Include) > 0 {
+		s.Include = remote.Sync.Include
+	}
+	if len(s.Exclude) == 0 && len(remote.Sync.Exclude) > 0 {
+		s.Exclude = remote.Sync.Exclude
+	}
+	vars := make(map[string]string)
+	for k, v := range remote.Vars {
+		vars[k] = v
+	}
+	for k, v := range local.Vars {
+		vars[k] = v
+	}
+	return s, vars
 }
 
 func Save(cfg Config) error {

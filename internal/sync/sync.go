@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -18,6 +20,8 @@ const baseDir = ".ntpl"
 
 // builtinExcludes are always excluded from sync/diff to prevent self-overwrite.
 var builtinExcludes = []string{".ntpl", ".ntpl.yaml", ".ntpl.lock", ".ntplignore"}
+
+var varRe = regexp.MustCompile(`\{ntpl:(\w+)\}`)
 
 // Options controls sync behavior.
 type Options struct {
@@ -35,15 +39,57 @@ func templateDir(tpl config.Template) string {
 	return filepath.Join(baseDir, "template", tpl.Name)
 }
 
+func replaceVars(data []byte, vars map[string]string) []byte {
+	if len(vars) == 0 {
+		return data
+	}
+	return varRe.ReplaceAllFunc(data, func(match []byte) []byte {
+		key := string(varRe.FindSubmatch(match)[1])
+		if val, ok := vars[key]; ok {
+			return []byte(val)
+		}
+		return match
+	})
+}
+
+func runHook(name, script string) error {
+	if script == "" {
+		return nil
+	}
+	fmt.Printf("running %s hook: %s\n", name, script)
+	cmd := exec.Command("sh", "-c", script)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%s hook failed: %w", name, err)
+	}
+	return nil
+}
+
+func loadRemoteDefaults(cfg config.Config, dir string) (config.Sync, map[string]string) {
+	remotePath := filepath.Join(dir, ".ntpl.yaml")
+	remote, err := config.LoadFrom(remotePath)
+	if err != nil {
+		return cfg.Sync, cfg.Vars
+	}
+	fmt.Println("  loaded remote config defaults from template")
+	return config.MergeSync(cfg, remote)
+}
+
 func Run(cfg config.Config, opts Options) {
 	fmt.Println("sync template...")
+
+	if !opts.DryRun {
+		if err := runHook("before", cfg.Hooks.Before); err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+	}
 
 	lock, err := config.LoadLock()
 	if err != nil {
 		fmt.Println("warning: load lock file:", err)
 	}
-
-	excludes := mergeExcludes(cfg.Sync)
 
 	for _, tpl := range cfg.Templates {
 		dir := templateDir(tpl)
@@ -55,7 +101,10 @@ func Run(cfg config.Config, opts Options) {
 			continue
 		}
 
-		paths := cfg.Sync.Include
+		syncCfg, vars := loadRemoteDefaults(cfg, dir)
+		excludes := mergeExcludes(syncCfg)
+
+		paths := syncCfg.Include
 		if len(paths) == 0 {
 			paths = []string{"."}
 		}
@@ -66,13 +115,13 @@ func Run(cfg config.Config, opts Options) {
 
 			if opts.DryRun {
 				fmt.Printf("[%s] dry-run: %s -> %s\n", tpl.Name, src, dst)
-				dryRunDir(src, dst, excludes)
+				dryRunDir(src, dst, excludes, vars)
 			} else if opts.Interactive {
 				fmt.Printf("[%s] interactive sync: %s -> %s\n", tpl.Name, src, dst)
-				interactiveSyncDir(src, dst, excludes)
+				interactiveSyncDir(src, dst, excludes, vars)
 			} else {
 				fmt.Printf("[%s] sync: %s -> %s\n", tpl.Name, src, dst)
-				if err := syncDir(src, dst, excludes); err != nil {
+				if err := syncDir(src, dst, excludes, vars); err != nil {
 					fmt.Printf("[%s] sync failed for %s: %s\n", tpl.Name, path, err)
 				}
 			}
@@ -94,6 +143,10 @@ func Run(cfg config.Config, opts Options) {
 			fmt.Println("warning: save lock file:", err)
 		}
 		fmt.Println("\nsync done")
+
+		if err := runHook("after", cfg.Hooks.After); err != nil {
+			fmt.Println("error:", err)
+		}
 	} else {
 		fmt.Println("\ndry-run complete, no files changed")
 	}
@@ -101,8 +154,6 @@ func Run(cfg config.Config, opts Options) {
 
 func Diff(cfg config.Config) {
 	fmt.Println("diff template...")
-
-	excludes := mergeExcludes(cfg.Sync)
 
 	for _, tpl := range cfg.Templates {
 		dir := templateDir(tpl)
@@ -113,7 +164,10 @@ func Diff(cfg config.Config) {
 			continue
 		}
 
-		paths := cfg.Sync.Include
+		syncCfg, vars := loadRemoteDefaults(cfg, dir)
+		excludes := mergeExcludes(syncCfg)
+
+		paths := syncCfg.Include
 		if len(paths) == 0 {
 			paths = []string{"."}
 		}
@@ -122,7 +176,7 @@ func Diff(cfg config.Config) {
 			src := filepath.Join(dir, path)
 			dst := filepath.Join(".", path)
 
-			if err := diffDir(src, dst, excludes); err != nil {
+			if err := diffDir(src, dst, excludes, vars); err != nil {
 				fmt.Printf("[%s] diff failed for %s: %s\n", tpl.Name, path, err)
 			}
 		}
@@ -168,7 +222,7 @@ func Status(cfg config.Config) {
 }
 
 // dryRunDir shows what would be synced without making changes.
-func dryRunDir(src, dst string, excludes []string) {
+func dryRunDir(src, dst string, excludes []string, vars map[string]string) {
 	filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			if d != nil && d.IsDir() {
@@ -187,6 +241,7 @@ func dryRunDir(src, dst string, excludes []string) {
 
 		target := filepath.Join(dst, rel)
 		srcData, _ := os.ReadFile(path)
+		srcData = replaceVars(srcData, vars)
 		dstData, dstErr := os.ReadFile(target)
 
 		if dstErr != nil {
@@ -199,7 +254,7 @@ func dryRunDir(src, dst string, excludes []string) {
 }
 
 // interactiveSyncDir syncs files with per-file confirmation.
-func interactiveSyncDir(src, dst string, excludes []string) {
+func interactiveSyncDir(src, dst string, excludes []string, vars map[string]string) {
 	reader := bufio.NewReader(os.Stdin)
 
 	filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
@@ -229,6 +284,7 @@ func interactiveSyncDir(src, dst string, excludes []string) {
 		if err != nil {
 			return err
 		}
+		srcData = replaceVars(srcData, vars)
 
 		dstData, dstErr := os.ReadFile(target)
 		if dstErr == nil && bytes.Equal(srcData, dstData) {
@@ -283,7 +339,7 @@ func isExcluded(rel string, excludes []string) bool {
 }
 
 // syncDir copies files from src to dst, skipping excluded paths.
-func syncDir(src, dst string, excludes []string) error {
+func syncDir(src, dst string, excludes []string, vars map[string]string) error {
 	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -311,6 +367,7 @@ func syncDir(src, dst string, excludes []string) error {
 		if err != nil {
 			return err
 		}
+		data = replaceVars(data, vars)
 
 		info, err := d.Info()
 		if err != nil {
@@ -322,7 +379,7 @@ func syncDir(src, dst string, excludes []string) error {
 }
 
 // diffDir compares files between src (template) and dst (project).
-func diffDir(src, dst string, excludes []string) error {
+func diffDir(src, dst string, excludes []string, vars map[string]string) error {
 	files := make(map[string]bool)
 
 	filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
@@ -352,6 +409,9 @@ func diffDir(src, dst string, excludes []string) error {
 		dstFile := filepath.Join(dst, rel)
 
 		srcData, srcErr := os.ReadFile(srcFile)
+		if srcErr == nil {
+			srcData = replaceVars(srcData, vars)
+		}
 		dstData, dstErr := os.ReadFile(dstFile)
 
 		switch {

@@ -110,6 +110,14 @@ sync:
   exclude:                       # 排除的目录/文件
     - .env
     - config.local.yaml
+
+vars:                            # 模板变量，替换 {ntpl:key} 占位符
+  project_name: my-app
+  org: nilorg
+
+hooks:                           # sync 前后执行脚本
+  before: ./scripts/backup.sh
+  after: ./scripts/gen.sh
 ```
 
 支持多模板源：
@@ -227,3 +235,6 @@ ntpl 在项目目录中管理以下文件和目录：
 - ref 支持 branch、tag 和完整 commit hash（7-40 位十六进制）
 - include 为空时同步模板仓库的全部文件
 - glob 匹配规则同 Go `filepath.Match`：`*` 匹配非分隔符字符，`?` 匹配单个字符
+- `{ntpl:key}` 变量替换在文件写入时执行，未定义的变量保留原样
+- hooks 仅从本地 `.ntpl.yaml` 读取，远程模板的 hooks 不会被合并（安全考虑）
+- 远程配置源：模板仓库根目录的 `.ntpl.yaml` 提供 sync/vars 默认值，本地配置优先
