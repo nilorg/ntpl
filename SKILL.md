@@ -128,6 +128,8 @@ ntpl replace --dry-run
 | `--suggest` | 交互式：自动检测源值，逐个输入目标值 |
 | `--dry-run` | 预览模式 |
 
+`replace` 分两阶段执行：先替换文件内容，再重命名路径中包含源值的目录和文件（从深到浅处理，避免路径失效）。
+
 replace 配置格式：
 ```yaml
 replace:

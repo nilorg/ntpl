@@ -195,6 +195,65 @@ var replaceCmd = &cobra.Command{
 		} else {
 			fmt.Printf("replaced %d occurrences in %d files\n", totalReplacements, totalFiles)
 		}
+
+		// Phase 2: rename directories and files whose names contain from values.
+		var renames []rename
+		filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+			if err != nil || path == "." {
+				return err
+			}
+			if config.IsExcluded(path, config.BuiltinExcludes) || config.IsExcluded(path, depDirs) {
+				if d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			name := d.Name()
+			newName := name
+			for _, r := range replacements {
+				newName = strings.ReplaceAll(newName, r.from, r.to)
+			}
+			if newName != name {
+				dir := filepath.Dir(path)
+				renames = append(renames, rename{
+					oldPath: path,
+					newPath: filepath.Join(dir, newName),
+					isDir:   d.IsDir(),
+				})
+			}
+			return nil
+		})
+
+		if len(renames) > 0 {
+			// Sort by path depth descending so children are renamed before parents.
+			sort.Slice(renames, func(i, j int) bool {
+				di := strings.Count(renames[i].oldPath, string(filepath.Separator))
+				dj := strings.Count(renames[j].oldPath, string(filepath.Separator))
+				if di != dj {
+					return di > dj
+				}
+				return renames[i].oldPath > renames[j].oldPath
+			})
+
+			fmt.Println("\nrenames:")
+			for _, r := range renames {
+				if replaceDryRun {
+					fmt.Printf("  %s → %s\n", r.oldPath, r.newPath)
+				} else {
+					if err := os.Rename(r.oldPath, r.newPath); err != nil {
+						fmt.Printf("  error renaming %s: %s\n", r.oldPath, err)
+					} else {
+						fmt.Printf("  %s → %s\n", r.oldPath, r.newPath)
+					}
+				}
+			}
+
+			if replaceDryRun {
+				fmt.Printf("dry-run: would rename %d paths\n", len(renames))
+			} else {
+				fmt.Printf("renamed %d paths\n", len(renames))
+			}
+		}
 	},
 }
 
@@ -202,6 +261,12 @@ type replaceItem struct {
 	key  string
 	from string
 	to   string
+}
+
+type rename struct {
+	oldPath string
+	newPath string
+	isDir   bool
 }
 
 func saveReplaceConfig(repls []replaceItem) {

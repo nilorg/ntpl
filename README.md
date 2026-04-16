@@ -278,6 +278,8 @@ replace:
       to: "my-app"
 ```
 
+`replace` 还会自动重命名路径中包含源值的目录和文件（从深到浅处理，避免路径失效）。
+
 工作流：`ntpl sync` → `ntpl replace` → 源仓库的值被替换为你的值。
 
 ## Pack / Replace 排除
